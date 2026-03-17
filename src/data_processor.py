@@ -11,23 +11,36 @@ def load_and_merge_data():
     # This identifies '/mount/src/health_equity_insights_dashboard'
     # By going up one level from 'src/data_processor.py'
     root_path = Path(__file__).parents[1]
-    data_dir = root_path / "data"
+
+    # Support both `data/` (common on Linux/Streamlit Cloud) and `Data/` (common on macOS).
+    candidates = [root_path / "data", root_path / "Data"]
+    data_dir = next((p for p in candidates if p.exists()), None)
 
     # 2. CHECK IF FOLDER EXISTS
-    if not data_dir.exists():
+    if data_dir is None:
         # This will tell us in the logs exactly what folders DO exist
         available = [str(p.name) for p in root_path.iterdir() if p.is_dir()]
-        raise FileNotFoundError(f"Folder 'data' not found at {data_dir}. Available folders: {available}")
+        raise FileNotFoundError(
+            f"Folder 'data'/'Data' not found under {root_path}. Available folders: {available}"
+        )
 
     # 3. LOAD ENCOUNTER CHUNKS
     # Looks for 'encounters_part_1.csv', etc.
+    encounter_files = []
+
+    # Prefer chunked files if present
     search_pattern = str(data_dir / "encounters_part_*.csv")
-    encounter_files = glob.glob(search_pattern)
+    encounter_files.extend(glob.glob(search_pattern))
+
+    # Fallback to a single file name if used
+    single_encounters = data_dir / "encounters.csv"
+    if single_encounters.exists():
+        encounter_files.append(str(single_encounters))
     
     if not encounter_files:
         raise FileNotFoundError(f"No encounter files found in {data_dir}. Check file names.")
     
-    encounters = pd.concat((pd.read_csv(f) for f in encounter_files), ignore_index=True)
+    encounters = pd.concat((pd.read_csv(f) for f in sorted(encounter_files)), ignore_index=True)
 
     # 4. LOAD PATIENTS
     patients_path = data_dir / "patients.csv"
@@ -46,10 +59,11 @@ def load_and_merge_data():
 
     # 6. EQUITY METRICS
     # Aggregating for the $1,350 vs $895 cost burden report
-    equity_report = merged_data.groupby(['RACE', 'GENDER']).agg({
-        'TOTAL_CLAIM_COST': 'mean',
-        'Id': 'count'
-    }).rename(columns={'Id': 'Encounter_Count'}).reset_index()
+    equity_report = (
+        merged_data.groupby(["RACE", "GENDER"], dropna=False)
+        .agg(TOTAL_CLAIM_COST=("TOTAL_CLAIM_COST", "mean"), Encounter_Count=("PATIENT", "size"))
+        .reset_index()
+    )
 
     return merged_data, equity_report
    
