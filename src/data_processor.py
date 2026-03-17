@@ -1,17 +1,25 @@
+import os
 import pandas as pd
 import glob
-import os
 
-def load_and_merge_data(data_dir='data/'):
+def load_and_merge_data():
+    # Get the absolute path to the root directory of your project
+    # This reaches out of 'src' and into the main folder to find 'data'
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    data_dir = os.path.join(base_dir, 'data')
+
     # 1. Recombine split encounter files
+    # This now looks in the correct absolute path
     encounter_files = glob.glob(os.path.join(data_dir, "encounters_part_*.csv"))
+    
     if not encounter_files:
-        raise FileNotFoundError("No split encounter files found in the data directory.")
+        # This is the error you were seeing [cite: 5]
+        raise FileNotFoundError(f"No split encounter files found in: {data_dir}")
     
     print(f"Combining {len(encounter_files)} encounter chunks...")
     encounters = pd.concat((pd.read_csv(f) for f in encounter_files), ignore_index=True)
 
-    # 2. Load Patient data
+    # 2. Load Patient data using the same absolute path
     patients = pd.read_csv(os.path.join(data_dir, 'patients.csv'))
 
     # 3. Data Cleaning: Age Calculation
