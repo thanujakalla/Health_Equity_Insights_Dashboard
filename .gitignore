@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Streamlit
+.streamlit/
+
+# Model artifacts (can be regenerated)
+models/
+
+# Editor
+.vscode/
